@@ -29,8 +29,9 @@ macro @version_info()
 enum CliOperation : const char
 {
     ENCRYPT = 1,
-    DECRYPT = 2,
-    REKEY = 3,
+    DECRYPT,
+    REKEY,
+    QUERY
 }
 
 struct CliOptions
@@ -56,11 +57,12 @@ CliOptions options;
 
 fn void process_options(String[] args)
 {
-    bool needs_help, is_encrypt, is_decrypt, is_rekey, wants_version;
+    bool is_query, is_encrypt, is_decrypt, is_rekey, needs_help, wants_version;
 
     if (catch opt::@parse(
         args,
         "h", "help", &needs_help,
+        "q", "query", &is_query,
         "e", "encrypt", &is_encrypt,
         "d", "decrypt", &is_decrypt,
         "r", "rekey", &is_rekey,
@@ -80,6 +82,23 @@ fn void process_options(String[] args)
     if (needs_help) @usage();
 
     if (wants_version) @version_info();
+
+    if ((char)is_query + (char)is_encrypt + (char)is_decrypt + (char)is_rekey > 1)
+    {
+        io::eprintn("You can only choose one operation: query (-q), encrypt (-e), decrypt (-d), or rekey (-r).");
+        os::exit(1);
+    }
+
+    switch
+    {
+        case is_encrypt: options.operation = ENCRYPT;
+        case is_decrypt: options.operation = DECRYPT;
+        case is_rekey: options.operation = REKEY;
+        case is_query: options.operation = QUERY;
+
+        default:
+            io::eprintn("You must supply at least one operation: query (-q), encrypt (-e), decrypt (-d), or rekey (-r).");
+    }
 
     // Options are largely regarded/selected based on the chosen mode.
     //   But first, make sure the user isn't doing a bad thing.

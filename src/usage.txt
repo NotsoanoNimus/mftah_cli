@@ -9,6 +9,9 @@ USAGE:
 
 OPTIONS:
    -h,--help       Shows this usage information.
+   -q,--query      Query the target for more information. If a password is not supplied,
+                    only minimal information will be returned. Does not work with
+                    streaming mode.
    -d,--decrypt    Specifies that the application should decrypt input data.
    -e,--encrypt    Specifies that the application should encrypt input data.
    -r,--rekey      Enable re-key mode. Changes the input payload's password.
