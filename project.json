@@ -6,9 +6,9 @@
   // Directories where C3 library files may be found.
   "dependency-search-paths": [ "lib" ],
   // Libraries to use for all targets.
-  "dependencies": [ ],
+  "dependencies": [ "mftah", "getopt" ],
   // Authors, optionally with email.
-  "authors": [ "John Doe <john.doe@example.com>" ],
+  "authors": [ "Zack Puhl (NotsoanoNimus) <github@xmit.xyz>" ],
   // Version using semantic versioning.
   "version": "0.1.0",
   // Sources compiled for all targets.
