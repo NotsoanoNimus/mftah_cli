@@ -1,0 +1,39 @@
+This application encrypts, decrypts, and re-keys MFTAH payloads provided either
+   by STDIN or by a file path. It then pipes the mutated content to either STDOUT
+   or to a destination file.
+
+USAGE:
+   Encrypt:  mftahcrypt -ek 'superPassword!' -i /mnt/usb/mydisk.img -o mydisk.mftah
+   Decrypt:  mftahcrypt -dK ~/.payload_pass <payload.mftah >payload.img
+   Stream:   dd if=/path/to/500GiB-mftah | mftahcrypt -sdK ~/keyfile.bin -o ~/out.img
+
+OPTIONS:
+   -h,--help       Shows this usage information.
+   -d,--decrypt    Specifies that the application should decrypt input data.
+   -e,--encrypt    Specifies that the application should encrypt input data.
+   -r,--rekey      Enable re-key mode. Changes the input payload's password.
+   -s,--stream     Indicates that the operation should take place on streamed I/O
+                    only. For re-keys, this means both the input and output will be
+                    streamed MFTAH payload types. To convert a streamed payload to
+                    a fixed-length one, you must manually decrypt then re-encrypt.
+   -o,--output     Writes the operation's output to the given file path. When not
+                    provided, STDOUT is used as the default.
+   -i,--input      Specifies a file to read from for the operation. When not provided,
+                    STDIN in used as the default.
+   -k,--key        A key string to use for encryption or decryption.
+                    When not encrypting, this is the CURRENT key of the target.
+   -K,--keyfile    A path to a binary file acting as the raw key to use.
+                    When not encrypting, this is the CURRENT key file of the target.
+   -c,--change-key A new key to use for the input payload during re-keying.
+   -C,--change-keyfile
+                   A new key file to use for the input payload during re-keying.
+   -F,--force-key  Force acceptance of a given key when encrypting or rekeying a
+                    payload, bypassing key requirements. A null key is still invalid.
+   -t,--threads    For encryption and re-keying only. Specify how many parallel
+                    threads should be used to encrypt the data. Defaults to %d.
+   -n,--noninteractive
+                   Runs the operation in a non-interactive mode. This will perform
+                    the crypto operation without any confirmations. USE WITH CAUTION.
+   -v,--version    Print version information and exit.
+
+

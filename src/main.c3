@@ -1,59 +1,95 @@
 module mftah_cli;
 
 import mftah;
+import opt;
 
 import std::thread;
+import std::os;
 import std::io;
 
 
 const DEFAULT_THREADS = 8;
 
 
-macro void @usage() => io::printf(`
-This application encrypts, decrypts, and re-keys MFTAH payloads provided either
-   by STDIN or by a file path. It then pipes the mutated content to either STDOUT
-   or to a destination file.
+const char[] USAGE_TEXT = $embed("usage.txt");
 
-USAGE:
-   Encrypt:  mftahcrypt -ek 'superPassword!' -i /mnt/usb/mydisk.img -o mydisk.mftah
-   Decrypt:  mftahcrypt -dK ~/.payload_pass <payload.mftah >payload.img
-   Stream:   dd if=/path/to/500GiB-mftah | mftahcrypt -sdK ~/keyfile.bin -o ~/out.img
+macro @usage()
+{
+    io::printf(USAGE_TEXT, DEFAULT_THREADS);
+    os::exit(1);
+}
 
-OPTIONS:
-   -h,--help       Shows this usage information.
-   -d,--decrypt    Specifies that the application should decrypt input data.
-   -e,--encrypt    Specifies that the application should encrypt input data.
-   -r,--rekey      Enable re-key mode. Changes the input payload's password.
-   -s,--stream     Indicates that the operation should take place on streamed I/O
-                    only. For re-keys, this means both the input and output will be
-                    streamed MFTAH payload types. To convert a streamed payload to
-                    a fixed-length one, you must manually decrypt then re-encrypt.
-   -o,--output     Writes the operation's output to the given file path. When not
-                    provided, STDOUT is used as the default.
-   -i,--input      Specifies a file to read from for the operation. When not provided,
-                    STDIN in used as the default.
-   -k,--key        A key string to use for encryption or decryption.
-                    When not encrypting, this is the CURRENT key of the target.
-   -k,--keyfile    A path to a binary file acting as the raw key to use.
-                    When not encrypting, this is the CURRENT key file of the target.
-   -c,--change-key A new key to use for the input payload during re-keying.
-   -C,--change-keyfile
-                   A new key file to use for the input payload during re-keying.
-   -F,--force-key  Force acceptance of a given key when encrypting or rekeying a
-                    payload, bypassing key requirements. A null key is still invalid.
-   -t,--threads    For encryption and re-keying only. Specify how many parallel
-                    threads should be used to encrypt the data. Defaults to %d.
-   -n,--noninteractive
-                   Runs the operation in a non-interactive mode. This will perform
-                    the crypto operation without any confirmations. USE WITH CAUTION.
-   -v,--version    Print version information and exit.
+macro @version_info()
+{
+    io::printf("VERSION INFO\n");
+    os::exit(1);
+}
 
-`, DEFAULT_THREADS);
+
+enum CliOperation : const char
+{
+    ENCRYPT = 1,
+    DECRYPT = 2,
+    REKEY = 3,
+}
+
+struct CliOptions
+{
+    bool stream;
+    bool force_key;
+    bool noninteractive;
+
+    char threads;
+
+    CliOperation operation;
+
+    String output_path;
+    String input_path;
+
+    String keyfile_path;
+    String key;
+
+    String new_keyfile_path;
+    String new_key;
+}
+CliOptions options;
+
+fn void process_options(String[] args)
+{
+    bool needs_help, is_encrypt, is_decrypt, is_rekey, wants_version;
+
+    if (catch opt::@parse(
+        args,
+        "h", "help", &needs_help,
+        "e", "encrypt", &is_encrypt,
+        "d", "decrypt", &is_decrypt,
+        "r", "rekey", &is_rekey,
+        "s", "stream", &options.stream,
+        "o", "output", &options.output_path,
+        "i", "input", &options.input_path,
+        "k", "key", &options.key,
+        "K", "keyfile", &options.keyfile_path,
+        "c", "change-key", &options.new_key,
+        "C", "change-keyfile", &options.new_keyfile_path,
+        "t", "threads", &options.threads,
+        "F", "force-key", &options.force_key,
+        "n", "noninteractive", &options.noninteractive,
+        "v", "version", &wants_version,
+    )) @usage();
+
+    if (needs_help) @usage();
+
+    if (wants_version) @version_info();
+
+    // Options are largely regarded/selected based on the chosen mode.
+    //   But first, make sure the user isn't doing a bad thing.
+    // if ()
+}
 
 
 fn int main(String[] args)
 {
-    @usage();
+    process_options(args);
 
     return 0;
 }
