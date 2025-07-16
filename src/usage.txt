@@ -19,6 +19,7 @@ OPTIONS:
                     only. For re-keys, this means both the input and output will be
                     streamed MFTAH payload types. To convert a streamed payload to
                     a fixed-length one, you must manually decrypt then re-encrypt.
+   --stream-factor Advanced option. Sets the buffer size factor for streamed encryption.
    -o,--output     Writes the operation's output to the given file path. When not
                     provided, STDOUT is used as the default.
    -i,--input      Specifies a file to read from for the operation. When not provided,
@@ -33,7 +34,10 @@ OPTIONS:
    -F,--force-key  Force acceptance of a given key when encrypting or rekeying a
                     payload, bypassing key requirements. A null key is still invalid.
    -t,--threads    For encryption and re-keying only. Specify how many parallel
-                    threads should be used to encrypt the data. Defaults to %d.
+                    threads should be used to encrypt the data. Defaults to %d; max %d.
+   -a,--algorithm  For encryption and re-keying only. Specify the predefined MFTAH
+                    crypto suite to use for slicing and protecting the input payload.
+                    Valid options are "chacha20" and "aes_cbc". Defaults to "chacha20".
    -n,--noninteractive
                    Runs the operation in a non-interactive mode. This will perform
                     the crypto operation without any confirmations. USE WITH CAUTION.

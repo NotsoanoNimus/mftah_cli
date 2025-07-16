@@ -7,15 +7,30 @@ import std::thread;
 import std::os;
 import std::io;
 
+import libc;
+
 
 const DEFAULT_THREADS = 8;
+const DEFAULT_STREAM_BLOCK_FACTOR = 8;
+const DEFAULT_CRYPTO_TYPE = MftahCryptoType.CHACHA20_POLY1305;
+const FIXED_OFFSET_LIMIT = 256 * 1024 * 1024;   // 256 MiB
 
+
+faultdef DIE;
+
+macro void? @die(msg, args...)
+{
+    io::eprintf(msg, ...args);
+    io::eprintn("");
+
+    return DIE?;
+}
 
 const char[] USAGE_TEXT = $embed("usage.txt");
 
 macro @usage()
 {
-    io::printf(USAGE_TEXT, DEFAULT_THREADS);
+    io::printf(USAGE_TEXT, DEFAULT_THREADS, mftah::MAX_THREAD_COUNT);
     os::exit(1);
 }
 
@@ -40,24 +55,36 @@ struct CliOptions
     bool force_key;
     bool noninteractive;
 
+    char stream_factor;
     char threads;
+    ulong fixed_offset;
+    MftahCryptoType intended_type;
 
     CliOperation operation;
 
     String output_path;
+    File output_file;
     String input_path;
+    File input_file;
 
     String keyfile_path;
     String key;
 
     String new_keyfile_path;
     String new_key;
+
+    char[] loaded_key;
+    char[] new_loaded_key;
 }
 CliOptions options;
 
-fn void process_options(String[] args)
+fn void? process_options(String[] args)
 {
     bool is_query, is_encrypt, is_decrypt, is_rekey, needs_help, wants_version;
+    String algorithm = "chacha20";
+
+    options.stream_factor = DEFAULT_STREAM_BLOCK_FACTOR;
+    options.threads = DEFAULT_THREADS;
 
     if (catch opt::@parse(
         args,
@@ -67,6 +94,7 @@ fn void process_options(String[] args)
         "d", "decrypt", &is_decrypt,
         "r", "rekey", &is_rekey,
         "s", "stream", &options.stream,
+        "", "stream-factor", &options.stream_factor,
         "o", "output", &options.output_path,
         "i", "input", &options.input_path,
         "k", "key", &options.key,
@@ -74,6 +102,8 @@ fn void process_options(String[] args)
         "c", "change-key", &options.new_key,
         "C", "change-keyfile", &options.new_keyfile_path,
         "t", "threads", &options.threads,
+        "", "fixed-offset", &options.fixed_offset,
+        "a", "algorithm", &algorithm,
         "F", "force-key", &options.force_key,
         "n", "noninteractive", &options.noninteractive,
         "v", "version", &wants_version,
@@ -85,8 +115,7 @@ fn void process_options(String[] args)
 
     if ((char)is_query + (char)is_encrypt + (char)is_decrypt + (char)is_rekey > 1)
     {
-        io::eprintn("You can only choose one operation: query (-q), encrypt (-e), decrypt (-d), or rekey (-r).");
-        os::exit(1);
+        @die("You can only choose one operation: query (-q), encrypt (-e), decrypt (-d), or rekey (-r).")!;
     }
 
     switch
@@ -96,19 +125,149 @@ fn void process_options(String[] args)
         case is_rekey: options.operation = REKEY;
         case is_query: options.operation = QUERY;
 
-        default:
-            io::eprintn("You must supply at least one operation: query (-q), encrypt (-e), decrypt (-d), or rekey (-r).");
+        default: @die("You must supply at least one operation: query (-q), encrypt (-e), decrypt (-d), or rekey (-r).")!;
     }
 
+    if (!options.key.len && !options.keyfile_path.len) @die("No key (-k) or keyfile (-K) was specified.")!;
+    if (options.key.len && options.keyfile_path.len) @die("Both a key (-k) AND a keyfile (-K) cannot be specified; choose only one.")!;
+
     // Options are largely regarded/selected based on the chosen mode.
-    //   But first, make sure the user isn't doing a bad thing.
-    // if ()
+    switch (options.operation)
+    {
+        // case ENCRYPT:
+
+        // case DECRYPT:
+
+        // case REKEY:
+
+        // case QUERY:
+    }
 }
 
 
-fn int main(String[] args)
+// NOTE: This specifically loads the key directly into the static 'options' variable,
+//   because we don't want stack or other temp memory locations to hold our key. While
+//   none of that is a guarantee, it's cozy to minimize it anyway.
+fn void load_keys()
 {
-    process_options(args);
+    //
+}
+
+
+fn void wipe_mem(char[] target)
+{
+    if (!target.len) return;
+
+    // Pass over the key several times with varying bit patterns. This is overkill, but the fun kind.
+    $for var $x = 0; $x < 7; ++$x:
+        mem::set(target.ptr, 0x5A, target.len);
+        mem::set(target.ptr, 0xA5, target.len);
+        mem::set(target.ptr, 0xFF, target.len);
+        mem::set(target.ptr, 0x00, target.len);
+    $endfor
+
+    mem::free(target.ptr);
+    target = {};
+}
+
+
+fn char[] consume_input()
+{
+    return {};
+}
+
+
+fn void flush_output(char[] data)
+{
+    //
+}
+
+
+fn char[] read_next_input_block(usz requested_size)
+{
+    return {};
+}
+
+
+fn void yield_next_output_block(char[] data)
+{
+    //
+}
+
+
+fn int main(String[] args) => main_inner(args) ?? 1;
+
+fn int? main_inner(String[] args)
+{
+    process_options(args)!;
+
+    // Load all password/key variables.
+    load_keys();
+    defer wipe_mem(options.loaded_key);
+    defer wipe_mem(options.new_loaded_key);
+
+    bool working = true;
+    bool rekey_canary = false;
+    char[] payload;   // scoped here so REKEY can fill it with 'decrypt' data
+
+    switch (options.operation)
+    {
+        case ENCRYPT:
+            char[] enc_key = !rekey_canary ? options.loaded_key : options.new_loaded_key;
+
+            if (options.stream)
+            {
+                if (catch oops = mftah::stream_new(enc_key, options.intended_type, options.stream_factor, &read_next_input_block, &yield_next_output_block))
+                {
+                    // Need to remove any potential output that has been yielded to a file. No need to securely erase it though.
+
+                    @die("Captured fault '%s' when attempting to create a streamed MFTAH file.", oops)!;
+                }
+            }
+            else
+            {
+                if (!payload.len) payload = consume_input();
+                defer wipe_mem(payload);
+
+                char[]? encrypted = mftah::new(payload, enc_key, options.intended_type, options.threads, options.fixed_offset);
+
+                if (catch oops = encrypted)
+                {
+                    (void)@die("Captured fault '%s' when attempting to create a fixed-length MFTAH file.", oops);
+
+                    return oops?;
+                }
+
+                flush_output(encrypted);
+            }
+
+        case DECRYPT:
+            if (options.stream)
+            {
+                if (catch oops = mftah::stream_decrypt(options.loaded_key, &read_next_input_block, &yield_next_output_block))
+                {
+                    // Need to shread any output that may have been yielded so far. If this output was going to STDOUT, there's not really anything we can do.
+                    // try_shred_output();
+
+                    @die("Captured fault '%s' when attempting to decrypt a streamed MFTAH file.", oops)!;
+                }
+
+                if (rekey_canary) options.input_path = options.output_path;
+            }
+            else
+            {
+                //
+            }
+
+            if (rekey_canary) nextcase ENCRYPT;
+
+        case REKEY:
+            rekey_canary = true;
+            nextcase DECRYPT;
+
+        case QUERY:
+            io::printn("TODO! PAYLOAD INFO");
+    }
 
     return 0;
 }
