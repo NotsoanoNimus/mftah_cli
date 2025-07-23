@@ -16,6 +16,10 @@ const DEFAULT_CRYPTO_TYPE = MftahCryptoType.CHACHA20_POLY1305;
 const FIXED_OFFSET_LIMIT = 256 * 1024 * 1024;   // 256 MiB
 
 
+// Scoped at the global level to allow stream hooks to switch behavior if true.
+bool rekey_canary = false;
+
+
 faultdef DIE;
 
 macro void? @die(msg, args...)
@@ -36,6 +40,7 @@ macro @usage()
 
 macro @version_info()
 {
+    // TODO!
     io::printf("VERSION INFO\n");
     os::exit(1);
 }
@@ -207,7 +212,6 @@ fn int? main_inner(String[] args)
     defer wipe_mem(options.new_loaded_key);
 
     bool working = true;
-    bool rekey_canary = false;
     char[] payload;   // scoped here so REKEY can fill it with 'decrypt' data
 
     switch (options.operation)
@@ -246,17 +250,43 @@ fn int? main_inner(String[] args)
             {
                 if (catch oops = mftah::stream_decrypt(options.loaded_key, &read_next_input_block, &yield_next_output_block))
                 {
-                    // Need to shread any output that may have been yielded so far. If this output was going to STDOUT, there's not really anything we can do.
+                    // Need to shred any output that may have been yielded so far. If this output was going to STDOUT, there's not really anything we can do.
                     // try_shred_output();
 
                     @die("Captured fault '%s' when attempting to decrypt a streamed MFTAH file.", oops)!;
                 }
 
-                if (rekey_canary) options.input_path = options.output_path;
+                // NOTE: Options specify that when STDOUT is the output, streaming mode cannot be used to rekey since decrypted output can't be buffered.
+                //   An alternative is to just call the program in an decrypt-then-encrypt pipeline.
+                if (rekey_canary)
+                {
+                    @swap(options.input_path, options.output_path);   // write back re-encrypted data to the file we read in, from the file we wrote out
+
+                    @swap(options.input_file, options.output_file);
+                }
             }
             else
             {
-                //
+                if (!payload.len) payload = consume_input();
+
+                char[]? decrypted = mftah::decrypt(payload, options.loaded_key);
+                
+                if (catch oops = decrypted)
+                {
+                    (void)@die("Captured fault '%s' when attempting to decrypt input MFTAH payload.", oops);
+
+                    return oops?;
+                }
+
+                // When rekeying, do not flush the decrypted output; instead, keep it in-memory and proceed to ENCRYPT with the new key.
+                if (!rekey_canary)
+                {
+                    flush_output(decrypted);
+                }
+                else
+                {
+                    payload = decrypted;
+                }
             }
 
             if (rekey_canary) nextcase ENCRYPT;
