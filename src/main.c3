@@ -369,11 +369,12 @@ fn char[]? consume_input()
         @verbose("Reading stream from STDIN (%s).", options.input_file);
         usz allocation_size = buffer_size;
 
-        for (usz nbytes = 0; (nbytes = options.input_file.read(buffer[counter:buffer_size])!) > 0; counter += nbytes)
+        for (usz nbytes = 0; (nbytes = options.input_file.read(buffer[counter:buffer_size - (counter % buffer_size)])!) > 0;)
         {
             @verbose("-- Captured %d bytes.", nbytes);
 
-            if (counter + buffer_size < allocation_size) continue;
+            counter += nbytes;
+            if (counter < allocation_size) continue;
 
             if (allocation_size == memory_limit_bytes)
             {
@@ -403,9 +404,30 @@ fn char[]? consume_input()
 }
 
 
-fn void flush_output(char[] data)
+fn void? flush_output(char[] data)
 {
-    //
+    usz counter;
+
+    @info("Flushing %d bytes of output data.", data.len);
+
+    if (!data.len) @die("Output data slice is empty or null.")!;
+
+    if (options.uses_stdout)
+    {
+        @verbose("Writing output to STDOUT (%s).", options.output_file);
+
+        for (usz chunk_size = 1024 * 1024; counter < data.len; counter += min(chunk_size, data.len - counter))
+        {
+            options.output_file.write(data[counter:min(chunk_size, data.len - counter)])!;
+        }
+    }
+    else
+    {
+        @verbose("Writing output wholesale to file (%d bytes)...", data.len);
+        counter = options.output_file.write(data)!;
+    }
+
+    if (counter != data.len) @die("Expected to write %d bytes, but only got %d bytes.", data.len, counter)!;
 }
 
 
@@ -517,7 +539,12 @@ fn int? main_inner(String[] args)
                     return oops?;
                 }
 
-                flush_output(encrypted);
+                if (catch oops = flush_output(encrypted))
+                {
+                    (void)@die("Captured fault '%s' while writing fixed-length output.", oops);
+
+                    return oops?;
+                }
             }
 
         case DECRYPT:
@@ -562,6 +589,13 @@ fn int? main_inner(String[] args)
                     }
 
                     (void)@die("Captured fault '%s' during fixed-length decryption.", oops);
+
+                    return oops?;
+                }
+
+                if (catch oops = flush_output(decrypted))
+                {
+                    (void)@die("Captured fault '%s' while writing fixed-length output.", oops);
 
                     return oops?;
                 }
