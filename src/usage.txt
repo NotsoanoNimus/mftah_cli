@@ -32,6 +32,9 @@ OPTIONS:
                     key constraints. A null/empty key will still be invalid.
    -t,--threads    For encryption only. Specify how many parallel threads should be used
                     to encrypt the data. Defaults to %d; maximum of %d.
+   --fixed-offset  For encryption only. A fixed offset of randomized space to purposefully
+                    prepend to the encrypted payload file, between the header and the actual
+                    data. Useful for obfuscation; limited to %d MiB (%d bytes).
    -a,--algorithm  For encryption only. Specify the predefined MFTAH crypto suite to use
                     for slicing and protecting the input payload. Valid options are
                     "chacha20" and "aes256cbc". Defaults to "chacha20".
@@ -41,6 +44,8 @@ OPTIONS:
                     destination file paths. Use with caution.
    -l,--limit      Non-streaming mode only. Specify memory limits for fixed-length payloads,
                     in units of MiB. Defaults to %d MiB.
-   -v,--version    Print version information and exit.
+   -Q|--quiet      Operate with as close to no output as possible.
+   -v|--verbose    Output verbose information during execution.
+   --version       Print version information and exit.
 
 
