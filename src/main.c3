@@ -14,7 +14,7 @@ import libc;
 const DEFAULT_THREADS = 8;
 const DEFAULT_STREAM_BLOCK_FACTOR = 8;
 const DEFAULT_MEMORY_LIMIT_MIB = 2048;   // 2,048 MiB (or 2 GiB)
-const FIXED_OFFSET_LIMIT = 256 * 1024 * 1024;   // 256 MiB
+const FIXED_OFFSET_LIMIT = 16 * 1024 * 1024;   // 16 MiB
 
 struct AlgorithmOption
 {
